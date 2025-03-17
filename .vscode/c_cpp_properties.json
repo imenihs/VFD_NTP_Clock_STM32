@@ -1,0 +1,25 @@
+{
+    "version": 4,
+    "configurations": [
+        {
+            /** 
+             * ms-vscode.cmake-tools plugin should be installed.
+             * 
+             * It provides data for C/C++ plugin,
+             * such as include paths, browse paths, defines, etc.
+             */
+            "name": "STM32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/ST/STM32CubeCLT_1.15.1/GNU-tools-for-STM32/arm-none-eabi/include",
+                "C:/ST/STM32CubeCLT_1.15.1/GNU-tools-for-STM32/arm-none-eabi/include/c++/12.3.1",
+                "C:/ST/STM32CubeCLT_1.15.1/GNU-tools-for-STM32/lib/gcc/arm-none-eabi/12.3.1/include"
+            ],
+            "configurationProvider": "ms-vscode.cmake-tools",
+            //"intelliSenseMode": "${default}"
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-arm"
+        }
+    ]
+}

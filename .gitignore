@@ -1,0 +1,4 @@
+/build/Debug/*
+/Drivers/
+/CMakeFiles/
+/cmake/
