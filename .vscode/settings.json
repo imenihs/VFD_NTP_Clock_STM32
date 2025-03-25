@@ -35,6 +35,10 @@
         "gpio.h": "c",
         "stm32f1xx_hal_tim.h": "c",
         "type_traits": "c",
-        "xtr1common": "c"
+        "xtr1common": "c",
+        "cmath": "c",
+        "usr_ftoa.h": "c",
+        "math.h": "c",
+        "stdlib.h": "c"
     }
 }

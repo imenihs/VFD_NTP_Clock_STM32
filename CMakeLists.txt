@@ -38,10 +38,10 @@ project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
 # C++ コンパイルオプション（STM32F103最適化）
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -mcpu=cortex-m3 -mthumb -mfloat-abi=soft -ffunction-sections -fdata-sections")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Og -mcpu=cortex-m3 -mthumb -mfloat-abi=soft -ffunction-sections -fdata-sections")
 
 # C コンパイルオプション（STM32F103最適化）
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -mcpu=cortex-m3 -mthumb -mfloat-abi=soft -ffunction-sections -fdata-sections")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Og -mcpu=cortex-m3 -mthumb -mfloat-abi=soft -ffunction-sections -fdata-sections")
 
 # リンク時の最適化（不要なコードを削除）
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gc-sections -u _printf_float") # printfにfloat変換機能を追加する

@@ -18,45 +18,46 @@ const std::array<VFD_Driver::DigitData, VFD_DIGIT_NUM> VFD_Driver::DigitSelector
 };
 
 const std::array<VFD_Driver::SegmentData, 38> VFD_Driver::SegmentSelector = {
+	// 13bitは表示上必要ないが、SegmentSelectorを配列ポインタで回すとき終端文字\0と区別できるようにしている
 	// 0bxxxxxgfedcba
-	0b000000111111, // 0
-	0b000000000110, // 1
-	0b000001011011, // 2
-	0b000001001111, // 3
-	0b000001100110, // 4
-	0b000001101101, // 5
-	0b000001111101, // 6
-	0b000000100111, // 7
-	0b000001111111, // 8
-	0b000001101111, // 9
-	0b000001110111, // A    10
-	0b000001111100, // b    11
-	0b000000111001, // C    12
-	0b000001011110, // d    13
-	0b000001111001, // E    14
-	0b000001110001, // F    15
-	0b000001101101, // S    16
-	0b000001010100, // n    17
-	0b000000110111, // П(M) 18
-	0b000000110001, // Γ(T) 19
-	0b000000011100, // u    20
-	0b000001111110, // ∀(W) 21
-	0b000001110100, // h    22
-	0b000001010000, // r    23
-	0b000001111010, // K	24
-	0b000001110011, // P	25
-	0b000001011100, // o	26
-	0b000000000100, // i	27
-	0b000001110110, // H	28
-	0b000001000000, // -    29
-	0b000001001000, // :    30
-	0b000001010010, // /    31
-	0b000010000000, // dp . 32
-	0b000100000000, // conma , 33
-	0b001000000000, // dash ' 34
-	0b010000000000, // digit v 35
-	0b100000000000, // harf 1/2 36
-	0b000000000000, // none	37;
+	0b1000000111111, // 0
+	0b1000000000110, // 1
+	0b1000001011011, // 2
+	0b1000001001111, // 3
+	0b1000001100110, // 4
+	0b1000001101101, // 5
+	0b1000001111101, // 6
+	0b1000000100111, // 7
+	0b1000001111111, // 8
+	0b1000001101111, // 9
+	0b1000001110111, // A    10
+	0b1000001111100, // b    11
+	0b1000000111001, // C    12
+	0b1000001011110, // d    13
+	0b1000001111001, // E    14
+	0b1000001110001, // F    15
+	0b1000001101101, // S    16
+	0b1000001010100, // n    17
+	0b1000000110111, // П(M) 18
+	0b1000000110001, // Γ(T) 19
+	0b1000000011100, // u    20
+	0b1000001111110, // ∀(W) 21
+	0b1000001110100, // h    22
+	0b1000001010000, // r    23
+	0b1000001111010, // K	24
+	0b1000001110011, // P	25
+	0b1000001011100, // o	26
+	0b1000000000100, // i	27
+	0b1000001110110, // H	28
+	0b1000001000000, // -    29
+	0b1000001001000, // :    30
+	0b1000001010010, // /    31
+	0b1000010000000, // dp . 32
+	0b1000110000000, // conma , 33
+	0b1001000000000, // dash ' 34
+	0b1010000000000, // digit v 35
+	0b1100000000000, // harf 1/2 36
+	0b1000000000000, // none	37;
 };
 std::array<VFD_Driver::VFD_DigitData_t, VFD_DIGIT_NUM> VFD_Driver::VFD_DigitData;
 const uint8_t VFD_Driver::VFD_DigitData_Size = sizeof(VFD_Driver::VFD_DigitData);
@@ -154,17 +155,27 @@ void VFD_Driver::setDigitDisplayData(uint8_t digit, const VFD_Driver::DigitDispl
 	this->setDigitDisplayData(digit, this->getSegmentData(data->num), data->bright);
 }
 
-void VFD_Driver::setDigitDisplayData(uint8_t start_digit, char *str, uint8_t bright)
+void VFD_Driver::setDigitDisplayData(uint8_t start_digit, const char *str, uint8_t bright)
 {
-	uint8_t i = 0;
-	while (str[i] != '\0')
+	if (str == nullptr)
+		return;
+
+	//文字列にコロン、カンマ、ダッシュがあるときは詰めて多重表示にする
+	VFD_Driver::SegmentData seg[VFD_DIGIT_NUM + 1] = {'\0'};
+
+	this->__replaceCharDCA(seg, str);
+
+	VFD_Driver::SegmentData *seg_p = seg;
+	while (*str != '\0')
 	{
-		if ((start_digit + i) >= VFD_DIGIT_NUM)
+		if (start_digit > VFD_DIGIT_NUM)
 		{
 			return;
 		}
-		this->setDigitDisplayData(start_digit + i, this->getSegmentData(str[i]), bright);
-		i++;
+		this->setDigitDisplayData(start_digit, *seg_p, bright);
+		str++;
+		seg_p++;
+		start_digit++;
 	}
 }
 
@@ -272,6 +283,43 @@ void VFD_Driver::displayTime(bool changeFade, usrTime::LocalTime_t *lt, usrTime:
 	this->setDigitDisplayData(0, &digitTime.hour_10);
 }
 
+void VFD_Driver::__replaceCharDCA(VFD_Driver::SegmentData *seg, const char *str)
+{
+	if (str == nullptr)
+		return;
+
+	while (*str != '\0')
+	{
+		if ((*str == '.') || (*str == ',')) // .と,
+		{
+			*(seg - 1) |= this->getSegmentData(*str); // .と,は1つ前の表示桁に追加する
+			str++;
+		}
+		else if (*str == '\'') //'
+		{
+			str++;
+			if (*str == '\0') //次に文字列がないときは'のみ表示
+			{
+				*seg = this->getSegmentData('\'');
+				break;
+			}
+			else //次に文字列があるときは'と次の文字を表示
+			{
+				*seg = this->getSegmentData(*str) | this->getSegmentData('\'');
+			}
+			str++;
+			seg++;
+		}
+		else //その他の文字は普通に変換
+		{
+			*seg = this->getSegmentData(*str);
+			str++;
+			seg++;
+		}
+	}
+	*seg = '\0';
+}
+
 uint8_t VFD_Driver::_get_brigt_time_100ms(uint8_t t100ms)
 {
 	switch (t100ms)
@@ -375,45 +423,31 @@ void VFD_Driver::displayDate(usrTime::LocalTime_t *lt)
 
 void VFD_Driver::displayTemp(float temp)
 {
-	char str[10];
-	// sprintf(str, "%4.1f", temp);
-	usr_floa_sig(temp, str, 4, 3);
-	this->setDigitDisplayData(0, (char *)"TM: ", 20);
-	this->setDigitDisplayData(4, this->getSegmentData(str[0]), 20);
-	this->setDigitDisplayData(5, this->getSegmentData(str[1]) | this->getSegmentData('.'), 20);
-	this->setDigitDisplayData(6, this->getSegmentData(str[3]), 20);
-	this->setDigitDisplayData(7, this->getSegmentData('C') | this->getSegmentData('\''), 20);
-	this->setDigitDisplayData(8, (char *)"  ", 20); // 8～9桁目
+	char str[20];
+	strcpy(str, "TM:");
+	usr_ftoa_sig(temp, str + strlen(str), 5, 3, 0);
+	strcat(str, "'C   ");
+	this->setDigitDisplayData(0, str, 20);
 }
 void VFD_Driver::displayPress(float press)
 {
-	char str[10];
-	// sprintf(str, "%4.0f", press);
-	usr_floa_sig(press, str, 4, 4);
-	this->setDigitDisplayData(0, this->getSegmentData('P'), 20);
-	this->setDigitDisplayData(1, this->getSegmentData('r'), 20);
-	this->setDigitDisplayData(2, this->getSegmentData(':'), 20);
-	this->setDigitDisplayData(3, str, 20); // 3～6桁目
-	this->setDigitDisplayData(7, this->getSegmentData('h'), 20);
-	this->setDigitDisplayData(8, this->getSegmentData('P'), 20);
-	this->setDigitDisplayData(9, this->getSegmentData('A'), 20);
-
-	if (str[0] != ' ')
-	{
-		this->setDigitDisplayData(3, this->getDigitDisplayData(3) | this->getSegmentData(',') | this->getSegmentData('.'), 20);
-	}
+	char str[20];
+	strcpy(str, "Pr:");
+	uint8_t len = strlen(str);
+	usr_ftoa_sig(press, str + len, 5, 4, 1);
+	// addThousandSeparator(str + len, ',', 3);
+	strcat(str, "hPA   ");
+	this->setDigitDisplayData(0, str, 20);
 }
 void VFD_Driver::displayHumi(float humi)
 {
-	char str[10];
-	// sprintf(str, "%4.1f", humi);
-	usr_floa_sig(humi, str, 4, 3);
-	this->setDigitDisplayData(0, (char *)"Hu: ", 20);
-	this->setDigitDisplayData(4, this->getSegmentData(str[0]), 20);
-	this->setDigitDisplayData(5, this->getSegmentData(str[1]) | this->getSegmentData('.'), 20);
-	this->setDigitDisplayData(6, this->getSegmentData(str[3]), 20);
-	this->setDigitDisplayData(7, this->getSegmentData('/') | this->getSegmentData('\'') | this->getSegmentData('.'), 20);
-	this->setDigitDisplayData(8, (char *)"  ", 20); // 8～9桁目
+	char str[20];
+	strcpy(str, "Hu:");
+	usr_ftoa_sig(humi, str + strlen(str), 5, 3, 0);
+	strcat(str, "'/.   ");
+	this->setDigitDisplayData(0, str, 20);
+	// this->setDigitDisplayData(7, this->getSegmentData('/') | this->getSegmentData('\'') | this->getSegmentData('.'), 20);
+	// this->setDigitDisplayData(8, (char *)"  ", 20); // 8～9桁目
 }
 void VFD_Driver::displayWeek(usrTime::LocalTime_t *lt)
 {

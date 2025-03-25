@@ -51,7 +51,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static uint8_t RcvUART_Data[36];
+static uint8_t RcvUART_Data[36] = {'\0'};
+static uint32_t rcvSpanCnt1ms = 0;
 
 /* USER CODE END PV */
 
@@ -188,6 +189,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   {
     // 1msec周期割り込み
     procEvent1msec();
+
+    rcvSpanCnt1ms++;
+    if (rcvSpanCnt1ms > 1000 * 10)
+    {
+      rcvSpanCnt1ms = 0;
+      // 10秒以上受信がない場合、DMA開始する
+      HAL_UART_Receive_DMA(&huart1, RcvUART_Data, sizeof(RcvUART_Data));
+    }
   }
 }
 
@@ -201,9 +210,7 @@ void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim)
     // VFD消灯時割り込み
     // PWMのVFD消灯時と同期している
     // 消灯時にVFD表示を次のものに更新し、桁間の残像を低減する
-    HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_SET);
     procEventCompare();
-    HAL_GPIO_WritePin(GPIOC,GPIO_PIN_13,GPIO_PIN_RESET);
   }
 }
 
@@ -225,12 +232,22 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
   }
 }
 
+/**
+ * UART受信完了割り込み
+ */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   if (huart->Instance == USART1)
   {
     procEventRcvUart(RcvUART_Data);
     HAL_UART_Receive_DMA(&huart1, RcvUART_Data, sizeof(RcvUART_Data));
+
+    // UART受信が何らか有効になっていないことを検出するカウンター
+    //受信できたのでリセットする
+    rcvSpanCnt1ms = 0;
+
+    //受信ステータス
+    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
   }
 }
 

@@ -2,13 +2,19 @@
 
 static VFD_Driver vfd; //クラスをローカルでオブジェクト化する(動的確保の必要がないため)
 static usrTime ut;     //クラスをローカルでオブジェクト化する(動的確保の必要がないため)
+volatile uint32_t AD_Val = 0;
 
-volatile uint32_t testadc;
+typedef struct
+{
+    float temp;
+    float press;
+    float humi;
+} EnvValue_t;
+volatile static EnvValue_t EnvVal = {0.0, 0.0, 0.0};
 
-volatile static float temp = 0;
-volatile static float press = 0;
-volatile static float humi = 0;
-
+/**
+ * @brief  初期化処理
+ */
 void procInit(void)
 {
     //初期化処理
@@ -17,6 +23,9 @@ void procInit(void)
     ut.setEpochMilliseconds(0);
 }
 
+/**
+ * @brief  メイン処理
+ */
 void procMain(void)
 {
     usrTime::LocalTime_t LocalTime;
@@ -27,8 +36,9 @@ void procMain(void)
     // vfd.displayTime(true, &LocalTime, LocalTime1ms);
     //  VFD表示データを生成
 
-    //vfd.displayTemp(temp);
-    //return;
+    // EnvVal.press=AD_Val/1.7;
+    // vfd.displayPress(EnvVal.press);
+    // return;
 
     uint8_t sec = LocalTime.second;
     if (12 <= sec && sec <= 17)
@@ -44,17 +54,17 @@ void procMain(void)
     else if (32 <= sec && sec <= 37)
     {
         //気温表示
-        vfd.displayTemp(temp);
+        vfd.displayTemp(EnvVal.temp);
     }
     else if (42 <= sec && sec <= 47)
     {
         //気圧表示
-        vfd.displayPress(press);
+        vfd.displayPress(EnvVal.press);
     }
     else if (52 <= sec && sec <= 57)
     {
         //湿度表示
-        vfd.displayHumi(humi);
+        vfd.displayHumi(EnvVal.humi);
     }
     else
     {
@@ -63,49 +73,53 @@ void procMain(void)
     }
 }
 
+/**
+ * @brief  VFD表示データ更新処理
+ */
 void procEventCompare(void)
 {
-    static uint8_t drv[4];
-    static uint32_t duty = 0;
-    duty = vfd.getDriveData(drv);
-    // 割り込み内処理のため最速化のためレジスタ直叩き
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
-    // GPIOA->BSRR = GPIO_PIN_3 << 16; // GPIO_PIN_3をLOWにする
-    HAL_SPI_Transmit(&hspi1, (uint8_t *)drv, 3, 1);
-    // SPI1->CR1 |= SPI_CR1_SPE; // SPIを有効化
-    // while (!(SPI1->SR & SPI_SR_TXE))
-    //     ;              // TXバッファが空になるのを待つ
-    // SPI1->DR = drv[0]; // 送信データをセット
-    // while (!(SPI1->SR & SPI_SR_TXE))
-    //     ;              // TXバッファが空になるのを待つ
-    // SPI1->DR = drv[1]; // 送信データをセット
-    // while (!(SPI1->SR & SPI_SR_TXE))
-    //     ;                         // TXバッファが空になるのを待つ
-    // SPI1->DR = drv[2];            // 送信データをセット
-    // while (SPI1->SR & SPI_SR_BSY) // 最後のデータが送信完了するのを待つ
-    //     ;
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
-    // GPIOA->BSRR = GPIO_PIN_3; // GPIO_PIN_3をHIGHにする
+    uint8_t drv[4];
+    uint32_t duty = 0;
+    duty = vfd.getDriveData(drv);                         //桁データの取得と、その桁の表示デューティーを取得
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET); // SPIのCS
+    HAL_SPI_Transmit(&hspi1, (uint8_t *)drv, 3, 1);       // SPIパケット送信
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);   // SPIのCS
 
-    duty = (duty * testadc) / 4096;
+    int32_t tmp;
+    tmp = 4095 - (int32_t)AD_Val;
+    tmp = (tmp < 380) ? 380 : tmp;
+    tmp = (tmp > 4095) ? 4095 : tmp;
 
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, duty);
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 380);
+    duty = (duty * tmp) / 4096;// 輝度調整のためPWM duty計算
+
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, duty); // VFD点灯イネーブル(PWMで輝度調整)
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 380);  // VFD点灯イネーブルと同期したコンペアマッチ割り込みのカウント値設定
+    //イネーブルdutyが380を超えたらVFD強制消灯させるため
+    //強制消灯期間を設けないとVFDの隣の桁に前の桁がうっすら表示されてゴーストの原因になる
 }
 
+/**
+ * @brief  1msイベント処理
+ */
 void procEvent1msec(void)
 {
     ut.incrementEpochMilliseconds();
 }
 
+/**
+ * @brief  AD変換完了イベント処理
+ */
 void procEventADC(void)
 {
     static uint32_t ad = 0;
     ad += HAL_ADC_GetValue(&hadc1);
     ad /= 2;
-    testadc = ad;
+    AD_Val = ad;
 }
 
+/**
+ * @brief  UART受信イベント処理
+ */
 void procEventRcvUart(uint8_t *buf)
 {
     if (
@@ -128,23 +142,24 @@ void procEventRcvUart(uint8_t *buf)
             uint8_t bytes[30];
         } RcvData_t;
         RcvData_t rcv;
-        uint8_t *a2b_h = &buf[1];
-        uint8_t *a2b_l = &buf[2];
-        for (uint8_t i = 0; i < sizeof(rcv.data); i++)
+        uint8_t *a2b_h = &buf[1];                      // ascii2桁の上位を格納
+        uint8_t *a2b_l = &buf[2];                      // ascii2桁の下位を格納
+        for (uint8_t i = 0; i < sizeof(rcv.data); i++) // 1パケットのバイト数分ループ
         {
             uint8_t str[3];
             str[0] = *a2b_h;
             str[1] = *a2b_l;
             str[2] = 0;
-            rcv.bytes[i] = strtoul((const char *)str, NULL, 16);
-            a2b_h += 2;
+            rcv.bytes[i] = strtoul((const char *)str, NULL, 16); // 16進数文字列を数値に変換
+            a2b_h += 2;                                          //受信文字ポインタを2つ進める(2文字で1セットのため)
             a2b_l += 2;
         }
 
-        ut.setEpochTime((usrTime::ltime_t)rcv.data.epoch);
-        ut.setEpochMilliseconds(0); //エポック時間を受信したときmsは0
-        temp = rcv.data.temp;
-        press = rcv.data.press;
-        humi = rcv.data.humi;
+        ut.setEpochTime((usrTime::ltime_t)rcv.data.epoch); //エポック時間を格納
+        ut.setEpochMilliseconds(0);                        //エポック時間を受信したときmsは0
+        //各センサー値を格納
+        EnvVal.temp = rcv.data.temp;
+        EnvVal.press = rcv.data.press;
+        EnvVal.humi = rcv.data.humi;
     }
 }

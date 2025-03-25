@@ -80,7 +80,7 @@ public:
 	uint32_t getDriveData(uint8_t *ptr);
 	void setDigitDisplayData(uint8_t digit, SegmentData segment, uint8_t bright);
 	void setDigitDisplayData(uint8_t digit, const DigitDisplayData_t *data);
-	void setDigitDisplayData(uint8_t start_digit, char *str, uint8_t bright);
+	void setDigitDisplayData(uint8_t start_digit, const char *str, uint8_t bright);
 	SegmentData getDigitDisplayData(uint8_t digit);
 	// void displayTime(bool changeFade, struct tm *time, uint8_t t100ms);
 	void displayTime(bool changeFade, usrTime::LocalTime_t *lt, usrTime::ltime1ms_t lt1ms);
@@ -122,6 +122,7 @@ private:
 	} VFD_DigitData_t;
 
 	typedef uint16_t DigitData;
+	void __replaceCharDCA(SegmentData *seg, const char *str);
 	uint8_t _get_brigt_time_100ms(uint8_t t100ms);
 	uint8_t _get_brigt_time_fade_out(uint8_t t100ms);
 	uint8_t _get_brigt_time_fade_in(uint8_t t100ms);
