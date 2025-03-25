@@ -16,7 +16,6 @@ const std::array<VFD_Driver::DigitData, VFD_DIGIT_NUM> VFD_Driver::DigitSelector
 	0b0100000000, //	9桁目
 	0b1000000000, //	10桁目(右側)
 };
-
 const std::array<VFD_Driver::SegmentData, 38> VFD_Driver::SegmentSelector = {
 	// 13bitは表示上必要ないが、SegmentSelectorを配列ポインタで回すとき終端文字\0と区別できるようにしている
 	// 0bxxxxxgfedcba
